@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Threat Analyzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080b12;
+      --surface: #0d1220;
+      --surface2: #111827;
+      --border: #1e2d45;
+      --accent: #00e5ff;
+      --accent2: #7c3aed;
+      --safe: #00e676;
+      --warn: #ffab00;
+      --danger: #ff1744;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --font-display: 'Syne', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.3;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 20%, rgba(0,229,255,0.04) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 80%, rgba(124,58,237,0.06) 0%, transparent 50%);
+      z-index: 0;
+      animation: bgPulse 8s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgPulse {
+      from { transform: scale(1) rotate(0deg); }
+      to   { transform: scale(1.1) rotate(3deg); }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Header ─────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 52px;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .shield-icon {
+      width: 48px;
+      height: 48px;
+      position: relative;
+    }
+
+    .shield-icon svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 12px var(--accent));
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--accent) 0%, #a78bfa 60%, var(--accent) 100%);
+      background-size: 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: shimmer 4s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+
+    /* ── Badges ─────────────────────────────── */
+    .badge-row {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 2px;
+      border: 1px solid;
+    }
+
+    .badge-ml  { border-color: var(--accent2); color: #a78bfa; background: rgba(124,58,237,0.1); }
+    .badge-bl  { border-color: var(--accent);  color: var(--accent); background: rgba(0,229,255,0.08); }
+    .badge-rt  { border-color: #00e676;  color: #00e676;  background: rgba(0,230,118,0.08); }
+
+    /* ── Input card ─────────────────────────── */
+    .input-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 32px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .input-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    .input-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .input-wrap {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-wrap:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,229,255,0.1), 0 0 20px rgba(0,229,255,0.05);
+    }
+
+    .url-prefix {
+      background: var(--surface2);
+      color: var(--muted);
+      padding: 14px 16px;
+      font-size: 0.8rem;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #urlInput {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 14px 16px;
+      min-width: 0;
+    }
+
+    #urlInput::placeholder { color: var(--muted); }
+
+    .scan-btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 0 28px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .scan-btn:hover { background: #33eeff; transform: translateX(2px); }
+    .scan-btn:active { transform: translateX(0); }
+    .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Batch */
+    .batch-toggle {
+      margin-top: 16px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.2s;
+    }
+    .batch-toggle:hover { color: var(--accent); }
+
+    #batchArea {
+      display: none;
+      margin-top: 14px;
+    }
+
+    #batchInput {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      padding: 12px;
+      resize: vertical;
+      min-height: 90px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #batchInput:focus { border-color: var(--accent); }
+    #batchInput::placeholder { color: var(--muted); }
+
+    .batch-scan-btn {
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid var(--accent2);
+      color: #a78bfa;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.2s;
+    }
+    .batch-scan-btn:hover { background: rgba(124,58,237,0.15); }
+
+    /* ── Scanning animation ─────────────────── */
+    .scanning {
+      display: none;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .scan-ring {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+
+    .scan-ring::before, .scan-ring::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+
+    .scan-ring::before {
+      border-top-color: var(--accent);
+      animation: spin 1s linear infinite;
+    }
+
+    .scan-ring::after {
+      border-bottom-color: var(--accent2);
+      animation: spin 1.5s linear infinite reverse;
+      inset: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .scan-text {
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      animation: blink 1.2s ease-in-out infinite;
+    }
+
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── Result panel ───────────────────────── */
+    #result {
+      display: none;
+      animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .verdict-header {
+      padding: 24px 28px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .verdict-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+
+    .verdict-icon.safe    { background: rgba(0,230,118,0.15);  border: 1px solid #00e676; box-shadow: 0 0 20px rgba(0,230,118,0.2); }
+    .verdict-icon.warn    { background: rgba(255,171,0,0.15);  border: 1px solid #ffab00; box-shadow: 0 0 20px rgba(255,171,0,0.2); }
+    .verdict-icon.danger  { background: rgba(255,23,68,0.15);  border: 1px solid #ff1744; box-shadow: 0 0 20px rgba(255,23,68,0.2); }
+
+    .verdict-text h2 {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .verdict-text h2.safe   { color: var(--safe); }
+    .verdict-text h2.warn   { color: var(--warn); }
+    .verdict-text h2.danger { color: var(--danger); }
+
+    .verdict-meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 4px;
+      letter-spacing: 0.05em;
+    }
+
+    .verdict-meta span {
+      color: var(--text);
+    }
+
+    /* Risk bar */
+    .risk-section {
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .risk-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .risk-score-val {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .risk-bar-track {
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .risk-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 1s cubic-bezier(0.16,1,0.3,1);
+      position: relative;
+    }
+
+    .risk-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent 60%, rgba(255,255,255,0.3));
+      animation: barShine 2s linear infinite;
+    }
+
+    @keyframes barShine {
+      from { transform: translateX(-100%); }
+      to   { transform: translateX(100%); }
+    }
+
+    .risk-bar-fill.safe   { background: linear-gradient(90deg, #00c853, #00e676); }
+    .risk-bar-fill.warn   { background: linear-gradient(90deg, #ff6f00, #ffab00); }
+    .risk-bar-fill.danger { background: linear-gradient(90deg, #b71c1c, #ff1744); }
+
+    /* Reasons */
+    .reasons-section {
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .reason-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.78rem;
+      color: var(--text);
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      animation: fadeIn 0.3s ease both;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+
+    .reason-item:last-child { border-bottom: none; }
+
+    .reason-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .reason-dot.danger { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+    .reason-dot.warn   { background: var(--warn);   box-shadow: 0 0 6px var(--warn); }
+    .reason-dot.safe   { background: var(--safe);   box-shadow: 0 0 6px var(--safe); }
+
+    /* Features grid */
+    .features-section {
+      padding: 20px 28px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .feature-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 10px 12px;
+    }
+
+    .feature-chip .fc-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .feature-chip .fc-val {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .feature-chip .fc-val.flagged { color: var(--warn); }
+
+    /* Batch results */
+    #batchResult { display: none; }
+
+    .batch-result-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 14px 18px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      animation: slideUp 0.3s ease both;
+    }
+
+    .batch-verdict-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .batch-verdict-dot.safe   { background: var(--safe);   box-shadow: 0 0 8px var(--safe); }
+    .batch-verdict-dot.warn   { background: var(--warn);   box-shadow: 0 0 8px var(--warn); }
+    .batch-verdict-dot.danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+
+    .batch-url {
+      flex: 1;
+      font-size: 0.75rem;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .batch-verdict-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .batch-score {
+      font-size: 0.7rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 600px) {
+      .input-wrap { flex-direction: column; }
+      .scan-btn { padding: 14px; border-top: 1px solid var(--border); }
+      .url-prefix { border-right: none; border-bottom: 1px solid var(--border); }
+      .verdict-header { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-row">
+      <div class="shield-icon">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 4L6 12V26C6 34.84 14 42.76 24 46C34 42.76 42 34.84 42 26V12L24 4Z" stroke="#00e5ff" stroke-width="2" fill="rgba(0,229,255,0.08)"/>
+          <path d="M16 24L21 29L32 18" stroke="#00e5ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1>ThreatScan</h1>
+    </div>
+    <p class="subtitle">URL Threat Intelligence System</p>
+    <div class="badge-row">
+      <span class="badge badge-ml">⬡ ML Heuristics</span>
+      <span class="badge badge-bl">⬢ Blacklist Engine</span>
+      <span class="badge badge-rt">◈ Real-time Analysis</span>
+    </div>
+  </header>
+
+  <!-- Input Card -->
+  <div class="input-card">
+    <label class="input-label" for="urlInput">▸ Target URL</label>
+    <div class="input-wrap">
+      <div class="url-prefix">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        SCAN
+      </div>
+      <input id="urlInput" type="text" placeholder="https://example.com/path?query=value" autocomplete="off" spellcheck="false"/>
+      <button class="scan-btn" id="scanBtn" onclick="scanSingle()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Analyze
+      </button>
+    </div>
+
+    <div class="batch-toggle" onclick="toggleBatch()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+      </svg>
+      <span id="batchToggleText">Batch mode (scan multiple URLs)</span>
+    </div>
+
+    <div id="batchArea">
+      <textarea id="batchInput" placeholder="Paste one URL per line:&#10;https://site1.com&#10;http://suspicious-domain.tk&#10;https://bank-verify.ml/login"></textarea>
+      <button class="batch-scan-btn" onclick="scanBatch()">⬡ Scan All URLs</button>
+    </div>
+  </div>
+
+  <!-- Scanning animation -->
+  <div class="scanning" id="scanning">
+    <div class="scan-ring"></div>
+    <div class="scan-text">Analyzing threat vectors...</div>
+  </div>
+
+  <!-- Single result -->
+  <div id="result"></div>
+
+  <!-- Batch results -->
+  <div id="batchResult"></div>
+
+  <footer>
+    ThreatScan v1.0 &nbsp;·&nbsp; ML + Blacklist Analysis &nbsp;·&nbsp; Flask Backend on :5000
+  </footer>
+</div>
+
+<script>
+  const API = "http://localhost:5000/api";
+
+  function verdictClass(verdict) {
+    if (verdict === "SAFE") return "safe";
+    if (verdict === "MALICIOUS") return "danger";
+    if (verdict === "SUSPICIOUS") return "danger";
+    return "warn";
+  }
+
+  function verdictEmoji(verdict) {
+    if (verdict === "SAFE") return "✓";
+    if (verdict === "MALICIOUS") return "✕";
+    if (verdict === "SUSPICIOUS") return "⚠";
+    return "?";
+  }
+
+  function setScanning(show) {
+    document.getElementById("scanning").style.display = show ? "block" : "none";
+    document.getElementById("scanBtn").disabled = show;
+  }
+
+  async function scanSingle() {
+    const url = document.getElementById("urlInput").value.trim();
+    if (!url) { shake("urlInput"); return; }
+
+    document.getElementById("result").style.display = "none";
+    document.getElementById("batchResult").style.display = "none";
+    setScanning(true);
+
+    try {
+      const res = await fetch(`${API}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      setScanning(false);
+      renderSingle(data);
+    } catch (e) {
+      setScanning(false);
+      renderError("Cannot connect to backend. Make sure app.py is running on port 5000.");
+    }
+  }
+
+  async function scanBatch() {
+    const raw = document.getElementById("batchInput").value.trim();
+    if (!raw) return;
+    const urls = raw.split("\n").map(s => s.trim()).filter(Boolean);
+    if (!urls.length) return;
+
+    document.getElementById("result").style.display = "none";
+    document.getElementById("batchResult").style.display = "none";
+    setScanning(true);
+
+    try {
+      const res = await fetch(`${API}/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls })
+      });
+      const data = await res.json();
+      setScanning(false);
+      renderBatch(data.results || []);
+    } catch (e) {
+      setScanning(false);
+      renderError("Cannot connect to backend. Make sure app.py is running on port 5000.");
+    }
+  }
+
+  function renderSingle(d) {
+    const vc = verdictClass(d.verdict);
+    const pct = Math.round(d.risk_score * 100);
+    const f = d.features || {};
+
+    const featureKeys = [
+      ["url_length", "URL Length"],
+      ["domain_length", "Domain Len"],
+      ["subdomain_count", "Subdomains"],
+      ["keyword_hits", "Keyword Hits"],
+      ["domain_entropy", "Entropy"],
+      ["hyphen_count", "Hyphens"],
+      ["dot_count", "Dots"],
+      ["has_https", "HTTPS"],
+      ["is_ip", "Is IP"],
+      ["suspicious_tld", "Bad TLD"],
+    ];
+
+    const featureChips = featureKeys.map(([k, label]) => {
+      const val = f[k];
+      if (val === undefined) return "";
+      const display = typeof val === "number" && val % 1 !== 0 ? val.toFixed(2) : val;
+      const isBad = (k === "is_ip" && val) || (k === "suspicious_tld" && val) ||
+                    (k === "keyword_hits" && val >= 2) || (k === "subdomain_count" && val >= 2) ||
+                    (k === "has_https" && !val);
+      return `<div class="feature-chip">
+        <div class="fc-label">${label}</div>
+        <div class="fc-val ${isBad ? "flagged" : ""}">${display === 1 && (k==="has_https") ? "Yes" : display === 0 && (k==="has_https") ? "No" : display === 1 ? "Yes" : display === 0 && (k!=="subdomain_count" && k!=="hyphen_count" && k!=="dot_count" && k!=="keyword_hits") ? "No" : display}</div>
+      </div>`;
+    }).join("");
+
+    const reasonsHtml = (d.reasons || []).map((r, i) =>
+      `<div class="reason-item" style="animation-delay:${i*0.07}s">
+        <div class="reason-dot ${vc}"></div>
+        <span>${r}</span>
+      </div>`
+    ).join("");
+
+    const html = `
+      <div class="result-card">
+        <div class="verdict-header">
+          <div class="verdict-icon ${vc}">${verdictEmoji(d.verdict)}</div>
+          <div class="verdict-text">
+            <h2 class="${vc}">${d.verdict}</h2>
+            <div class="verdict-meta">
+              Method: <span>${d.method}</span> &nbsp;·&nbsp;
+              Confidence: <span>${d.confidence}</span> &nbsp;·&nbsp;
+              Domain: <span>${(f.domain || "—").replace(/</g,"&lt;")}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="risk-section">
+          <div class="risk-label-row">
+            <span>Risk Score</span>
+            <span class="risk-score-val" style="color:${vc==="safe"?"#00e676":vc==="danger"?"#ff1744":"#ffab00"}">${pct}%</span>
+          </div>
+          <div class="risk-bar-track">
+            <div class="risk-bar-fill ${vc}" id="riskFill" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="reasons-section">
+          <div class="section-title">⬡ Detection Signals</div>
+          ${reasonsHtml}
+        </div>
+
+        <div class="features-section">
+          <div class="section-title">⬢ Extracted Features</div>
+          <div class="features-grid">${featureChips}</div>
+        </div>
+      </div>`;
+
+    const el = document.getElementById("result");
+    el.innerHTML = html;
+    el.style.display = "block";
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const fill = document.getElementById("riskFill");
+        if (fill) fill.style.width = pct + "%";
+      }, 100);
+    });
+  }
+
+  function renderBatch(results) {
+    const html = results.map((d, i) => {
+      const vc = verdictClass(d.verdict);
+      const pct = Math.round(d.risk_score * 100);
+      return `<div class="batch-result-item" style="animation-delay:${i*0.05}s">
+        <div class="batch-verdict-dot ${vc}"></div>
+        <div class="batch-url" title="${d.url}">${d.url}</div>
+        <div class="batch-verdict-label" style="color:${vc==="safe"?"#00e676":vc==="danger"?"#ff1744":"#ffab00"}">${d.verdict}</div>
+        <div class="batch-score">${pct}%</div>
+      </div>`;
+    }).join("");
+
+    const el = document.getElementById("batchResult");
+    el.innerHTML = `<div class="section-title" style="margin-bottom:12px;font-size:0.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)">⬡ Batch Results — ${results.length} URLs</div>` + html;
+    el.style.display = "block";
+  }
+
+  function renderError(msg) {
+    document.getElementById("result").innerHTML = `
+      <div class="result-card" style="padding:28px;text-align:center">
+        <div style="color:#ff1744;font-size:1.5rem;margin-bottom:12px">⚠</div>
+        <div style="font-size:0.8rem;color:var(--muted)">${msg}</div>
+      </div>`;
+    document.getElementById("result").style.display = "block";
+  }
+
+  function toggleBatch() {
+    const area = document.getElementById("batchArea");
+    const txt = document.getElementById("batchToggleText");
+    const open = area.style.display === "block";
+    area.style.display = open ? "none" : "block";
+    txt.textContent = open ? "Batch mode (scan multiple URLs)" : "Single mode";
+  }
+
+  function shake(id) {
+    const el = document.getElementById(id);
+    el.style.animation = "none";
+    el.style.borderColor = "var(--danger)";
+    setTimeout(() => el.style.borderColor = "", 800);
+  }
+
+  // Enter key
+  document.getElementById("urlInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") scanSingle();
+  });
+</script>
+</body>
+</html>
